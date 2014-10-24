@@ -1,0 +1,55 @@
+#!/usr/bin/env node
+var _ = require('underscore');
+var debug = require('debug')('nodopoly');
+var app = require('../app');
+
+//var config = require('nconf').file({file: '/config.json'});
+
+var riskEngine = require('../msgServer');
+app.set('port', process.env.PORT || 3000);
+
+var httpServer = app.listen(app.get('port'), function() {
+  console.log('Express server listening.  Use http://externalIPAddress:' + httpServer.address().port)  ;
+});
+
+var server = chatEngine.createServer({
+	httpServer: httpServer,
+	tcpServer: app.config.get("tcp").host,
+	tcpPort: app.config.get("tcp").port
+});
+
+server.start();
+
+var mgr = chatEngine.createManager();
+
+server.on('client connection',  function (socket) {
+	var ip = socket.remoteAddress || 'unknown IP Address';
+	var client = chatEngine.transformSocket(socket);
+
+	client.emit('message', {
+		user: 'Server',
+		action: 'msg',
+		message: 'Welcome to Chat!'
+	});
+
+	mgr.add(client);
+
+	client.broadcast('message', {
+		user: 'Server',
+		message: 'Someone connected: ' + ip
+	})
+
+	if (app.config.verbose) console.log(_.keys(socket));
+});
+
+server.on('error', function (err) {
+	console.log(err);
+	if (err.code == 'EADDRINUSE') {
+		//Port already in use
+	}
+});
+
+mgr.on('client message', function (data) {
+	if (app.config.verbose) { console.log(data.data); }
+	data.client.broadcast('message', data.data);
+});
